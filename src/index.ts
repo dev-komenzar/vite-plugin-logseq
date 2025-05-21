@@ -1,20 +1,34 @@
-import { ConfigEnv, Plugin, ResolvedConfig, ViteDevServer } from "vite";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import fs from "fs";
+import { mkdir, writeFile } from "fs/promises";
+import { get as httpGet, RequestOptions } from "http";
 import MagicString from "magic-string";
-import { RequestOptions, get as httpGet } from "http";
+import path from "path";
+import { ConfigEnv, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 
 const pluginName = "vite:logseq-dev-plugin";
 
-function getLogseqPluginId() {
+function getPackageJson() {
   try {
     const packageJson = fs.readFileSync(
       path.join(process.cwd(), "package.json"),
-      "utf-8"
+      "utf-8",
     );
 
-    return JSON.parse(packageJson).logseq.id;
+    return JSON.parse(packageJson);
+  } catch (err) {
+    console.error(`${pluginName}: failed to get valid package.json`);
+    throw err;
+  }
+}
+
+function getLogseqPluginId() {
+  try {
+    const { logseq } = getPackageJson();
+    // throw error when logseq.id is undefined
+    if (!logseq.id) {
+      throw new Error(`${pluginName}: failed to get valid plugin id`);
+    }
+    return logseq.id;
   } catch (err) {
     console.error(`${pluginName}: failed to get valid plugin id`);
   }
@@ -89,7 +103,7 @@ const logseqDevPlugin: () => Plugin = () => {
             host: "localhost",
           },
           // There is no point to open the index.html
-          open: false
+          open: false,
         });
       }
 
@@ -107,9 +121,9 @@ const logseqDevPlugin: () => Plugin = () => {
 
     transform(code, id) {
       if (
-        server?.moduleGraph.getModuleById(id)?.importers.size === 0 &&
-        !/node_modules/.test(id) &&
-        id.startsWith(process.cwd())
+        server?.moduleGraph.getModuleById(id)?.importers.size === 0
+        && !/node_modules/.test(id)
+        && id.startsWith(process.cwd())
       ) {
         const s = new MagicString(code);
         s.prepend(
@@ -121,7 +135,7 @@ if (import.meta.hot) {
     console.log("✨Plugin ${pluginId} reloaded ✨");
     // TODO: trigger re-render globally
   });
-}\n\n`
+}\n\n`,
         );
 
         s.append(`
@@ -144,7 +158,7 @@ if (import.meta.hot) {
       if (configEnv.command === "serve" && server) {
         if (!server.httpServer) {
           throw new Error(
-            `${pluginName} Only works for non-middleware mode for now`
+            `${pluginName} Only works for non-middleware mode for now`,
           );
         }
 
@@ -166,7 +180,7 @@ if (import.meta.hot) {
               htmlWithBase,
               {
                 encoding: "utf-8",
-              }
+              },
             );
             console.info(`${pluginName}: Wrote development index.html`);
           });
